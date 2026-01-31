@@ -673,8 +673,42 @@ def main():
     action = sys.argv[1]
 
     if action == 'start':
-        daemon = Daemon()
-        daemon.start()
+        # Check if already running
+        pid, running = get_daemon_status()
+        if running:
+            print(f"\033[33m⚠\033[0m  Vilya daemon already running (PID {pid})")
+            sys.exit(1)
+
+        # Fork to background
+        pid = os.fork()
+        if pid > 0:
+            # Parent process - wait briefly for daemon to start, then show message
+            import time
+            time.sleep(0.3)
+
+            # Check if daemon started successfully
+            new_pid, running = get_daemon_status()
+            if running:
+                print()
+                print(f"  \033[32m✓\033[0m  \033[1mVilya daemon started\033[0m")
+                print(f"     PID: {new_pid}")
+                print(f"     Port: {TCP_PORT}")
+                print()
+                print(f"     \033[90mRun '\033[0mvilya status\033[90m' to see sessions\033[0m")
+                print(f"     \033[90mRun '\033[0mvilya stop\033[90m' to stop the daemon\033[0m")
+                print()
+            else:
+                print("\033[31m✗\033[0m  Failed to start daemon")
+                sys.exit(1)
+            sys.exit(0)
+        else:
+            # Child process - become daemon
+            os.setsid()  # Create new session
+            # Redirect stdout/stderr to /dev/null
+            sys.stdout = open('/dev/null', 'w')
+            sys.stderr = open('/dev/null', 'w')
+            daemon = Daemon()
+            daemon.start()
 
     elif action == 'stop':
         stop_daemon()
