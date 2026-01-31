@@ -1,149 +1,118 @@
 # Vilya
 
-An iPhone app that lets you SSH into your laptop and use Claude Code from anywhere.
+Persistent terminal sessions from your iPhone. SSH into your Mac from anywhere and pick up right where you left off.
 
-## Features
+![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)
+![macOS](https://img.shields.io/badge/macOS-12%2B-brightgreen)
+![iOS](https://img.shields.io/badge/iOS-17%2B-brightgreen)
 
-- **Multiple Terminal Sessions** - Run several SSH sessions simultaneously
-- **SSH from Any Network** - Uses Tailscale mesh VPN for secure access anywhere
-- **Secure Authentication** - SSH key-only auth (no passwords)
-- **File Browser** - Browse and transfer files via SFTP
-- **Session Persistence** - tmux integration keeps sessions alive
-- **Command Notifications** - Get notified when long-running commands complete
+## What is this?
+
+Vilya lets you run terminal sessions on your Mac that persist even when you disconnect. Start a long-running command, close the app, come back later - your session is still there.
+
+Perfect for:
+- Running Claude Code from your phone
+- Long-running builds/deploys
+- Working from anywhere via Tailscale
+
+## Installation
+
+### Mac (daemon)
+
+```bash
+brew install somilmathur/vilya/vilya
+```
+
+Then start the daemon:
+
+```bash
+vilya start
+```
+
+### iPhone (app)
+
+Build from source (see below) or TestFlight link coming soon.
+
+## Usage
+
+### Daemon Commands
+
+```bash
+vilya start      # Start the daemon (runs in background)
+vilya stop       # Stop the daemon
+vilya status     # Show status and active sessions
+vilya sessions   # List all sessions
+vilya kill <n>   # Kill a specific session
+```
+
+### Connecting from iPhone
+
+1. Make sure both devices are on [Tailscale](https://tailscale.com)
+2. Enable Remote Login on your Mac (System Settings → General → Sharing → Remote Login)
+3. Open Vilya app, enter your Tailscale IP and username
+4. Create a session - it persists even when you disconnect!
 
 ## Architecture
 
 ```
 ┌─────────────────────┐                    ┌─────────────────────┐
-│   iPhone (Vilya)    │                    │   Laptop (macOS)    │
+│   iPhone (Vilya)    │                    │      Mac            │
 │                     │                    │                     │
-│  ┌───────────────┐  │    SSH (port 22)   │  ┌───────────────┐  │
-│  │  SwiftUI App  │◄─┼───────────────────►│  │   sshd        │  │
-│  │  + NMSSH      │  │   over Tailscale   │  └───────┬───────┘  │
-│  │  + SwiftTerm  │  │   (100.x.x.x)      │          │          │
-│  └───────────────┘  │                    │  ┌───────▼───────┐  │
-│                     │                    │  │ tmux + Claude │  │
-└─────────────────────┘                    │  │     Code      │  │
+│  ┌───────────────┐  │   SSH + Tunnel     │  ┌───────────────┐  │
+│  │  SwiftUI App  │──┼────────────────────┼──│  Vilya Daemon │  │
+│  │  + SwiftTerm  │  │   via Tailscale    │  │  (port 17177) │  │
+│  └───────────────┘  │                    │  └───────┬───────┘  │
+│                     │                    │          │          │
+└─────────────────────┘                    │  ┌───────▼───────┐  │
+                                           │  │   PTY Shell   │  │
+                                           │  │ (zsh + p10k)  │  │
                                            │  └───────────────┘  │
                                            └─────────────────────┘
 ```
 
-**No bridge server required** - the app connects directly to your laptop via SSH.
+Sessions survive disconnects because the daemon keeps the PTY alive.
 
-## Requirements
-
-### iPhone
-- iOS 17.0+
-- Tailscale app installed
-
-### Laptop (macOS)
-- macOS with SSH enabled (System Preferences → Sharing → Remote Login)
-- Tailscale installed and running
-- tmux installed (`brew install tmux`)
-
-## Setup
-
-### 1. Install Tailscale on Both Devices
-
-**On your Mac:**
-```bash
-brew install tailscale
-tailscale up
-tailscale ip -4  # Note this IP (e.g., 100.100.100.1)
-```
-
-**On your iPhone:**
-- Install Tailscale from the App Store
-- Log in with the same account
-
-### 2. Install tmux (Optional but Recommended)
-
-```bash
-brew install tmux
-```
-
-### 3. Configure SSH Key
-
-When you first launch Vilya, it will generate an SSH key pair. Copy the public key and add it to your laptop:
-
-```bash
-echo "ssh-ed25519 AAAA... vilya-iphone" >> ~/.ssh/authorized_keys
-```
-
-### 4. Connect
-
-1. Open Vilya on your iPhone
-2. Enter your Tailscale IP, username, and port (22)
-3. Tap Connect
-4. Start using Claude Code!
-
-## Building the App
+## Building the iOS App
 
 ### Prerequisites
 
 - Xcode 15.0+
-- CocoaPods (`sudo gem install cocoapods`)
+- iOS 17.0+ device
 
 ### Steps
 
-1. Clone the repository:
 ```bash
-git clone <repo-url>
-cd vilya/Vilya
+git clone https://github.com/somilmathur/vilya.git
+cd vilya
+open Vilya.xcodeproj
 ```
 
-2. Install dependencies:
-```bash
-pod install
-```
+Select your development team in Signing & Capabilities, then build and run.
 
-3. Open the workspace:
-```bash
-open Vilya.xcworkspace
-```
+## Requirements
 
-4. Select your development team in Xcode and build
+### Mac
+- macOS 12+
+- Python 3 (installed automatically by Homebrew)
+- Remote Login enabled
+- Tailscale (for remote access)
 
-## Tech Stack
+### iPhone
+- iOS 17.0+
+- Tailscale app (for remote access)
 
-- **SwiftUI** - UI framework
-- **NMSSH** - SSH/SFTP client library
-- **SwiftTerm** - Terminal emulator (via Swift Package Manager)
-- **CryptoKit** - SSH key generation
-- **Tailscale** - Mesh VPN networking
+## Features
 
-## Project Structure
-
-```
-Vilya/
-├── App/
-│   ├── VilyaApp.swift          # App entry point
-│   └── ContentView.swift       # Root navigation
-├── Features/
-│   ├── Connection/             # Server setup & connection
-│   ├── Terminal/               # Terminal sessions
-│   ├── Files/                  # SFTP file browser
-│   └── Settings/               # App settings
-├── Services/
-│   ├── SSHService.swift        # NMSSH wrapper
-│   ├── KeychainService.swift   # Secure key storage
-│   ├── TmuxService.swift       # tmux integration
-│   └── NotificationService.swift
-├── Models/
-│   ├── Server.swift
-│   ├── TerminalSession.swift
-│   └── FileItem.swift
-└── Utilities/
-    ├── SSHKeyGenerator.swift   # Ed25519 key generation
-    └── Constants.swift
-```
-
-## Security
-
-1. **Network Layer**: Tailscale encrypts all traffic with WireGuard
-2. **Authentication**: Ed25519 SSH keys stored in iOS Keychain
-3. **No Passwords**: Key-only authentication, no password storage
+- **Persistent Sessions** - Sessions survive app close/disconnect
+- **Scrollback Buffer** - See history when you reconnect
+- **Syntax Highlighting** - zsh-syntax-highlighting support
+- **Powerlevel10k** - Full p10k prompt support
+- **Claude Code** - Works with Claude Code CLI
 
 ## License
 
-MIT
+MIT - see [LICENSE](LICENSE)
+
+## Author
+
+[Somil Mathur](https://twitter.com/somilmathur)
